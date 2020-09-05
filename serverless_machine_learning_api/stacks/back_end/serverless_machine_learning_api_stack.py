@@ -4,8 +4,6 @@ from aws_cdk import aws_iam as _iam
 from aws_cdk import aws_ec2 as _ec2
 from aws_cdk import aws_logs as _logs
 
-# from pytorch_loader.custom_resources.stacks.pytorch_loader_stack import PytorchLoaderStack
-
 from aws_cdk import core
 
 import uuid
@@ -31,6 +29,7 @@ class ServerlessMachineLearningApiStack(core.Stack):
         self,
         scope: core.Construct,
         id: str,
+        pytorch_loader_server,
         vpc,
         lambda_efs_sg,
         efs_sg,

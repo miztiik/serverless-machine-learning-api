@@ -16,7 +16,7 @@ class GlobalArgs:
     MIZTIIK_SUPPORT_EMAIL = ["mystique@example.com", ]
 
 
-class PytorchOnEc2Stack(core.Stack):
+class PytorchOnEfsStack(core.Stack):
 
     def __init__(
             self,
@@ -32,14 +32,6 @@ class PytorchOnEc2Stack(core.Stack):
             **kwargs
     ) -> None:
         super().__init__(scope, id, **kwargs)
-
-        # Read BootStrap Script):
-        try:
-            with open("pytorch_loader/custom_resources/stacks/bootstrap_scripts/deploy_app.sh", mode="r") as file:
-                user_data1 = file.read()
-        except OSError as e:
-            print("Unable to read UserData script")
-            raise e
 
         # Ugly way of doing userdata
         user_data_part_01 = ("""#!/bin/bash
@@ -105,13 +97,13 @@ class PytorchOnEc2Stack(core.Stack):
             resources=["arn:aws:logs:*:*:*"]
         ))
 
-        # web_app_server Instance
-        web_app_server = _ec2.Instance(
+        # pytorch_loader Instance
+        self.pytorch_loader = _ec2.Instance(
             self,
-            "webAppServer",
+            "pyTorchLoader",
             instance_type=_ec2.InstanceType(
                 instance_type_identifier=f"{ec2_instance_type}"),
-            instance_name="web_app_server",
+            instance_name="pytorch_loader",
             machine_image=amzn_linux_ami,
             vpc=vpc,
             vpc_subnets=_ec2.SubnetSelection(
@@ -130,7 +122,7 @@ class PytorchOnEc2Stack(core.Stack):
                 user_data)
         )
 
-        web_app_server.add_security_group(efs_sg)
+        self.pytorch_loader.add_security_group(efs_sg)
 
         # Allow CW Agent to create Logs
         _instance_role.add_to_policy(
@@ -155,20 +147,20 @@ class PytorchOnEc2Stack(core.Stack):
 
         output_1 = core.CfnOutput(
             self,
-            "ApiConsumerPrivateIp",
-            value=f"http://{web_app_server.instance_private_ip}",
-            description=f"Use curl to access secure private Api. For ex, curl {{API_URL}}"
+            "PyTorchLoaderIp",
+            value=f"http://{self.pytorch_loader.instance_private_ip}",
+            description=f"Private Ip address of the server"
         )
 
         output_2 = core.CfnOutput(
             self,
-            "ApiConsumerInstance",
+            "PyTorchLoaderInstance",
             value=(
                 f"https://console.aws.amazon.com/ec2/v2/home?region="
                 f"{core.Aws.REGION}"
                 f"#Instances:search="
-                f"{web_app_server.instance_id}"
+                f"{self.pytorch_loader.instance_id}"
                 f";sort=instanceId"
             ),
-            description=f"Login to the instance using Systems Manager and use curl to access the SecureApiUrl"
+            description=f"Login to the instance using Systems Manager"
         )

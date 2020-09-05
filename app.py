@@ -4,8 +4,9 @@ from aws_cdk import core
 
 from serverless_machine_learning_api.stacks.back_end.vpc_stack import VpcStack
 from serverless_machine_learning_api.stacks.back_end.efs_stack import EfsStack
+from serverless_machine_learning_api.stacks.back_end.pytorch_on_efs_stack import PytorchOnEfsStack
 from serverless_machine_learning_api.stacks.back_end.serverless_machine_learning_api_stack import ServerlessMachineLearningApiStack
-from pytorch_loader.custom_resources.stacks.pytorch_on_ec2_stack import PytorchOnEc2Stack
+
 
 app = core.App()
 
@@ -24,10 +25,25 @@ efs_stack = EfsStack(
     description="Miztiik Automation: Deploy AWS Elastic File System Stack"
 )
 
+# Install Pytorch on EFS
+pytorch_on_efs = PytorchOnEfsStack(
+    app,
+    "pytorch-on-efs",
+    vpc=vpc_stack.vpc,
+    ec2_instance_type="m5.large",
+    deploy_to_efs=False,
+    efs_share=efs_stack.efs_share,
+    efs_ap_ml=efs_stack.efs_ap_ml,
+    efs_sg=efs_stack.efs_sg,
+    stack_log_level="INFO",
+    description="Miztiik Automation: Install Pytorch on EFS"
+)
+
 # Lambda with EFS for Video Processing
 serverless_machine_learning_api = ServerlessMachineLearningApiStack(
     app,
     "serverless-machine-learning-api",
+    pytorch_loader_server=pytorch_on_ec2.pytorch_loader,
     vpc=vpc_stack.vpc,
     lambda_efs_sg=efs_stack.lambda_efs_sg,
     efs_sg=efs_stack.efs_sg,
@@ -39,20 +55,6 @@ serverless_machine_learning_api = ServerlessMachineLearningApiStack(
     description="Miztiik Automation: Serverless machine learning API using PyTorch running in AWS Lambda"
 )
 
-
-# Deploy Pytorch on EC2 & EFS(If necessary)
-pytorch_on_ec2 = PytorchOnEc2Stack(
-    app,
-    "pytorch-on-ec2",
-    vpc=vpc_stack.vpc,
-    ec2_instance_type="m5.large",
-    deploy_to_efs=False,
-    efs_share=efs_stack.efs_share,
-    efs_ap_ml=efs_stack.efs_ap_ml,
-    efs_sg=efs_stack.efs_sg,
-    stack_log_level="INFO",
-    description="Miztiik Automation: Deploy EC2 To Install PyTorch in EFS"
-)
 
 # Stack Level Tagging
 core.Tag.add(app, key="Owner",
