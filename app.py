@@ -47,10 +47,11 @@ pytorch_on_ec2 = PytorchOnEc2Stack(
     vpc=vpc_stack.vpc,
     ec2_instance_type="m5.large",
     deploy_to_efs=False,
+    efs_share=efs_stack.efs_share,
     efs_ap_ml=efs_stack.efs_ap_ml,
     efs_sg=efs_stack.efs_sg,
     stack_log_level="INFO",
-    description="Deploy EC2 To Install PyTorch in EFS"
+    description="Miztiik Automation: Deploy EC2 To Install PyTorch in EFS"
 )
 
 # Stack Level Tagging

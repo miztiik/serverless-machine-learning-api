@@ -84,6 +84,7 @@ class EfsStack(core.Stack):
             uid="1000"
         )
 
+
         # create efs access point
         self.efs_ap = _efs.AccessPoint(
             self,
@@ -119,3 +120,4 @@ class EfsStack(core.Stack):
             value=f"sudo mount -t efs -o tls {self.efs_share.file_system_id}:/ /mnt/efs ",
             description="Use this command to mount efs using efs helper utility at location /mnt/efs"
         )
+

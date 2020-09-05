@@ -25,6 +25,7 @@ class PytorchOnEc2Stack(core.Stack):
             vpc,
             ec2_instance_type: str,
             deploy_to_efs,
+            efs_share,
             efs_ap_ml,
             efs_sg,
             stack_log_level: str,
@@ -35,10 +36,42 @@ class PytorchOnEc2Stack(core.Stack):
         # Read BootStrap Script):
         try:
             with open("pytorch_loader/custom_resources/stacks/bootstrap_scripts/deploy_app.sh", mode="r") as file:
-                user_data = file.read()
+                user_data1 = file.read()
         except OSError as e:
             print("Unable to read UserData script")
             raise e
+
+        # Ugly way of doing userdata
+        user_data_part_01 = ("""#!/bin/bash
+                        set -ex
+                        EFS_MNT="/efs"
+                        ML_HOME="${EFS_MNT}/ml"
+                        EFS_USER_ID=1000
+
+                        sudo yum -y install python3
+                        sudo yum -y install amazon-efs-utils
+
+                        sudo mkdir -p ${EFS_MNT}
+                        """
+                             )
+
+        # Troubleshoot here
+        # /var/lib/cloud/instance/scripts/part-001:
+        # /var/log/user-data.log
+        # file-system-id.efs.aws-region.amazonaws.com
+        user_data_part_02 = f"sudo mount -t efs -o tls {efs_share.file_system_id}:/ /efs"
+        user_data_part_03 = ("""
+                        sudo mkdir -p ${ML_HOME}
+                        cd ${ML_HOME}
+                        # sudo chown ssm-user:ssm-user ${ML_HOME}
+                        pip3 install -t ${ML_HOME}/lib torch
+                        pip3 install -t ${ML_HOME}/lib torchvision
+                        pip3 install -t ${ML_HOME}/lib numpy
+                        sudo chown -R ${EFS_USER_ID}:${EFS_USER_ID} ${ML_HOME}
+                        """
+                             )
+
+        user_data = user_data_part_01 + user_data_part_02 + user_data_part_03
 
         # Get the latest AMI from AWS SSM
         linux_ami = _ec2.AmazonLinuxImage(
