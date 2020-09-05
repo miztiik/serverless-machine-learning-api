@@ -9,7 +9,7 @@ setuptools.setup(
     name="serverless_machine_learning_api",
     version="0.0.1",
 
-    description="An empty CDK Python app",
+    description="Serverless machine learning API using PyTorch running in AWS Lambda",
     long_description=long_description,
     long_description_content_type="text/markdown",
 
