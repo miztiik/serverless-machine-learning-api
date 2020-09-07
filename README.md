@@ -148,6 +148,9 @@ For the machine learning part, we will be using a pre-trained model open sourced
       "lambda_version": "14",
       "ts": "2020-09-07 17:47:58.469903"
     }
+    real    0m27.570s
+    user    0m0.015s
+    sys     0m0.016s
     ```
 
     ```bash
@@ -162,6 +165,9 @@ For the machine learning part, we will be using a pre-trained model open sourced
       "lambda_version": "14",
       "ts": "2020-09-07 17:49:46.138871"
     }
+    real    0m2.645s
+    user    0m0.020s
+    sys     0m0.032s
     ```
 
     It is possible that the first invocation takes slightly longer(_even maybe timing out at API GW_) as the function has initialize with libraries and models from EFS. Subsequent invocations should be significantly lower at around `~ 3 seconds`.
