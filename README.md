@@ -1,20 +1,20 @@
 # Serverless Machine Learning API: Use PyTorch in AWS Lambda for Inference
 
-Mystique Unicorn App is a building new application based on microservice architectural pattern. The developers intend to create several deployment environments such as `dev`, `test` or `prod` to maintain the pace of development.
+Mystique Unicorn App is a building new application based on microservice architectural pattern. One of the services used by teh app is exposed as an ReST API does machine learning inference. This particular ML model and its depedent libraries need about 3GB of storage space. The dev team had been using lambda for most of their APIs and exposing them using Amazon API Gatway. They are interested in utilizing the same compute & gateway services for this ML api as well.
 
-The dev's are interested in having the ability to change the backend without any changes to the front-end. For example, The users should be sent to a different database from the Lambda function or trigger a completely different Lambda function or may get access some specific features in the app without having to do anything from their side.
+Currently(_Q3 2020_), the Lambda has only `500MB` of temporary space available and about `250MB` for unzipped layers. [Re:Invent][1] might changes these limites, But the teams is really on keen on getting started now.
 
 Can you help them do that in Amazon API Gateway & AWS Lambda?
 
 ## 🎯Solutions
 
-We can do this by using API Gateway stage variables ([ReST API][8] & [HTTP API][9]) and Lambda function [alias](https://docs.aws.amazon.com/lambda/latest/dg/configuration-aliases.html) without creating environment-wise redundant Lambda functions. In short, different Lambda alias, like `TEST` and `PROD` can be used as two different deployment targets for the Lambda function. When it comes to API Gateway, the [AWS Best Practice][10] here is to use different accounts or independant deployments of APIs for multiple environment like `dev`, `test` or `prod`.
+Amazon EFS is a fully managed shared file system that can be attached to a Lambda functions. This allows developers to easily build and import large code libraries directly into your Lambda functions, share data across function invocations. As the files in EFS is loaded dynamically during function invocation, you can also ensure that the latest version of these libraries is always used by every new execution environment.
 
-![Miztiik Automation API Best Practices: Highly Performant Design - API Keys | Rate Limiting with Usage Plan](images/miztiik_api_with_stage_variables_architecture.png)
+![Miztiik Automation Serverless Machine Learning API: Use PyTorch in AWS Lambda for Inference](images/miztiik_serverless_machine_learning_api_architecture_00.png)
 
-In this article, we will build an architecture, similar to the one shown above - A simple API using API Gateway which will trigger a Lambda function. We will have an stageVariable `lambdaAlias` and lets assume it is going to be an `prod` environment. The lambda will have multiple alias point at different stage of development. `prod` pointing to the most stable version and `dev` pointing to the bleeding edlge version.
+In this article, we will build an architecture, similar to the one shown above. To bootstrap our EFS with machine learning libraries and models, We will be using an EC2 machine. Once the process of installing and configuring EFS, the EC2 machine can be terminated.
 
-Depending on the `lambdaAlias` value in API Gateway and Lambda `alias` pointer, the response of the API will be different. The stacks are generated using [AWS Cloud Development Kit (CDK)][102]. The architecture has been designed in a modular way so that we c``an build them individually and integrate them together. The prerequisites to build this architecture are listed below
+For the machine learning part, we will be using a pre-trained model open sourced by [@nicolalandro][4] available in PyTorch Hub. This model classifies birds using a fine-grained image classifier. We will deploy this model in EFS. When we send the url of the image to the model, it will return us the bird spcies(_broadly speaking_).
 
 1.  ## 🧰 Prerequisites
 
@@ -23,17 +23,22 @@ Depending on the `lambdaAlias` value in API Gateway and Lambda `alias` pointer, 
     - 🛠 AWS CLI Installed & Configured - [Get help here](https://youtu.be/TPyyfmQte0U)
     - 🛠 AWS CDK Installed & Configured - [Get help here](https://www.youtube.com/watch?v=MKwxpszw0Rc)
     - 🛠 Python Packages, _Change the below commands to suit your OS, the following is written for amzn linux 2_
+
       - Python3 - `yum install -y python3`
       - Python Pip - `yum install -y python-pip`
       - Virtualenv - `pip3 install virtualenv`
+
+      **NOTE**: Given that we are planning to machine learning inferences using Lambda, the lambda function needs enough compute and memory to return a response in reasonable time. The automation in this repo, sets up lambda with `3008MB` memory and `5 Minutes` timeout. In addition to that, we will also be configuring `Provisioned Concurrency` <sup>[2]</sup> for our lambda function to avoid cold starts.
+
+      Obviously, there has been no attempt made to optimize these settings, as this just a technology demonstration. Given the above reasons and other resources like EC2, please be mindful of the costs involved in deploying and learning from this stack.
 
 1.  ## ⚙️ Setting up the environment
 
     - Get the application code
 
       ```bash
-      git clone https://github.com/miztiik/api-with-stage-variables
-      cd api-with-stage-variables
+      git clone https://github.com/miztiik/serverless-machine-learning-api
+      cd serverless-machine-learning-api
       ```
 
 1.  ## 🚀 Prepare the dev environment to run AWS CDK
@@ -61,60 +66,59 @@ Depending on the `lambdaAlias` value in API Gateway and Lambda `alias` pointer, 
     You should see an output of the available stacks,
 
     ```bash
-    anti-pattern-api
-    well-architected-api
+    vpc-stack
+    efs-stack
+    pytorch-on-efs
+    serverless-machine-learning-api
     ```
 
 1.  ## 🚀 Deploying the application
 
     Let us walk through each of the stacks,
 
-    - **Stack: anti-pattern-api**
-      We are going to deploy a simple api running as a lambda function. This API is deployed as public endpoint without any `stageVariables` or lambda `alias`. When the api is invoked, The backend returns a greeting message with along an timestamp
+    - **Stack: efs-stack**
+      We are going to create an EFS share and also create an `/ml` access point that will be used by our lambda function. We also need an VPC to host our EFS, the dependent stack `vpc-stack` will be automatically deployed for you. This stack will also set the `Acl` & `PosixUser` as `1000`.
+
+      To enable communication to our EFS, we will also setup an exclusive security group that allows port `2049` connections over `TCP` from any ip within the VPC. This will allow any EC2 instance and lambda functions within the VPC to read and write to our file share.
 
       Initiate the deployment with the following command,
 
       ```bash
-      cdk deploy anti-pattern-api
+      cdk deploy vpc-stack efs-stack
       ```
 
-      _Expected output:_
-      The `AntiPatternApiUrl` can be found in the outputs section of the stack,
-
-      ```bash
-      $ ANTI_PATTERN_API_URL="https://c4o9bm2qwj.execute-api.us-east-1.amazonaws.com/prod/anti-pattern-api/greeter"
-      $ curl ${ANTI_PATTERN_API_URL}
-      {
-        "message": "Hello from Miztiikal World, How is it going?",
-        "api_stage": "NO-STAGE-VARIABLE-DEFINED",
-        "lambda_version": "$LATEST",
-        "ts": "2020-08-26 17:07:27.707655"
-      }
-      ```
-
-      Here you can observe that lambda version is pointing to the `$LATEST` alias.
-
-    - **Stack: well-architected-api**
-
-      This stack:_well-architected-api_ is very much similar to the previous stack. In addition to that, We will also add an stage variable called `lambdaAlias` and set the value of that variable to `prod`. In addition to that, We will enable version and alias in greeter lambda function. The stack should create two aliases:
-
-      - `dev` - Pointing to the `$LATEST` version
-      - `prod` - Pointing to a unique idempotent version
+    - **Stack: pytorch-on-efs**
+      To bootstrap our EFS with the machine learning library and models, we need an instance that can write to our EFS share. We will be using an EC2 instance and the `user_data` script to automatically download and install the libraries. The script will install `torch` `torchvision` and `numpy`. The ML model will be downloaded from PyTorch Hub<sup>[3]</sup>
 
       Initiate the deployment with the following command,
 
       ```bash
-      cdk deploy well-architected-api
+      cdk deploy pytorch-on-efs
       ```
 
-      Check the `Outputs` section of the stack to access the `WellArchitectedApiUrl`
+    - **Stack: serverless-machine-learning-api**
+
+      At this point, we are all set to configure our machine learning inference api using AWS Lambda and expose it using API Gateway. This stack:_serverless-machine-learning-api_ do just that for us. It will create the lambda function inside the same VPC as our EFS share. The EFS share will be available for lambda at this mount point `/mnt/inference`. The path for the model and the dependent libraries are set as envionrment variables,
+
+      - `PYTHONPATH` : `/mnt/inference/lib`
+      - `TORCH_HOME` : `/mnt/inference/model`
+
+      Since we are also looking to avoid cold starts, the stack will create a versioned lambda and enable a provisioned concurrency of `1`.
+
+      Initiate the deployment with the following command,
+
+      ```bash
+      cdk deploy serverless-machine-learning-api
+      ```
+
+      Check the `Outputs` section of the stack to access the `MachineLearningInferenceApiUrl`
 
 1.  ## 🔬 Testing the solution
 
     We can use a tool like `curl` or `Postman` to query the urls. The _Outputs_ section of the respective stacks has the required information on the urls.
 
     ```bash
-    $ WELL_ARCHICTED_API_URL="https://r4e3y68p11.execute-api.us-east-1.amazonaws.com/prod/well-architected-api/greeter"
+    $ WELL_ARCHICTED_API_URL="https://r4e3y68p11.execute-api.us-east-1.amazonaws.com/prod/serverless-machine-learning-api/greeter"
     $ curl ${WELL_ARCHICTED_API_URL}
     {
       "message": "Hello from Miztiikal World, How is it going?",
@@ -124,75 +128,31 @@ Depending on the `lambdaAlias` value in API Gateway and Lambda `alias` pointer, 
     }
     ```
 
-    We can observe that the api is invoking a specific version of lambda: `38` to be specific. Your `lambda_version` number could be different from what is shown here. Let us make some changes to the lambda code and then test again.
-
-    - Navigate to the `greeter_fn_well-architected-api` in the Lambda console
-    - From **Qualifiers** > Select **Version** > Select **\$LATEST**
-    - To make it easier to edit the code, without breaking anything else, Lets update the `greetings_msg` variable. This should be around line _46_.
-
-      Change from this,
-
-      ```bash
-      greetings_msg = "Hello from Miztiikal World, How is it going?"
-      # greetings_msg = "Hello from Modernized Miztiikal World, How is it going?"
-      ```
-
-      to this,
-
-      ```bash
-      # greetings_msg = "Hello from Miztiikal World, How is it going?"
-      greetings_msg = "Hello from Modernized Miztiikal World, How is it going?"
-      ```
-
-    - **Save** the function
-    - From **Actions** > Select **Publish new version** > Write a friendly description and Choose **Publish**
-      and point the alias to the new version
-
-    Now we have our shiny new update function, let us promote `prod` alias to this updated version
-
-    - From **Qualifiers** > Select **Alias** (_If you see versions, then choose **Alias**_) > Select **prod**
-    - Scroll to _Alias Configuration_ > Choose **Edit**
-    - Select the newest version(_for example `39`_) > Select **Save**
-      - Leave _Weighted Alias_ at defaults
+    We need to append the image url as a query string. Here, couple of sample images of birds(Courstesy of wikimedia). Update the `ML_API_URL` and try it out. You can try with other bird images that are publicly accessible.
 
     ```bash
-    $ curl ${WELL_ARCHICTED_API_URL}
-    {
-      "message": "Hello from Modernized Miztiikal World, How is it going?",
-      "api_stage": "prod",
-      "lambda_version": "39",
-      "ts": "2020-08-27 13:03:19.810150"
-    }
+    $ ML_API_URL="https://i6c097ocbe.execute-api.us-east-1.amazonaws.com/prod/ml-api/identify-bird-species"
+    IMG_URL_1="https://upload.wikimedia.org/wikipedia/commons/d/d2/Western_Grebe_swimming.jpg"
+    IMG_URL_2="https://upload.wikimedia.org/wikipedia/commons/b/b5/House_Sparrow_%28Passer_domesticus%29-_Male_in_Kolkata_I_IMG_5904.jpg"
+    time curl ${ML_API_URL}?url=${IMG_URL_1}
     ```
 
-    You should be able observe that the `lambda_version` is updated with the newer version and also the `message` is changed.
+    _Expected Output_,
+
+    ```json
+
+    ```
+
+    It is possible that the first invocation takes slightly longer(_even maybe timing out at API GW_) as the function has initialize with libraries and models from EFS. Subsequent invocations should be significantly lower at around `~ 2 seconds`.
 
     _Additional Learnings:_ You can check the logs in cloudwatch for more information or increase the logging level of the lambda functions by changing the environment variable from `INFO` to `DEBUG`
 
 1.  ## 📒 Conclusion
 
-    Here we have demonstrated how to use API Gateway stage variables and lambda alias to release changes to your backend without impacting your frontend. Here are some **AWS Lambda Versioning Strategies** that can used in your projects,
+    Here we have demonstrated how to use EFS share with Lambda as a persistent storage. Here are few other use cases that you can try with the same pattern,
 
-    - Do not use an unqualified ARN or `$LATEST` in production
-    - Never call specific versions in production front-ends. Use an unique alias for each production release
-      - `prod202008` or `prodDV1`
-    - Retire older unused endpoints by denying their access via AWS IAM Role policy.
-
-      - For example, _DENY_ access to older alias
-
-      ```json
-      {
-        "Statement": [
-          {
-            "Effect": "Deny",
-            "Action": ["lambda:invokefunction"],
-            "Resource": [
-              "arn:aws:lambda:aws-region:acct-id:function:greeter_fn_well-architected-api:prod201004"
-            ]
-          }
-        ]
-      }
-      ```
+    - Media processing with `ffmpeg`: For example - Keyframe extraction for highlights etc.,
+    - Custom machine learning: For example use `OpenCV` to process of media
 
 1)  ## 🧹 CleanUp
 
@@ -218,7 +178,7 @@ Depending on the `lambdaAlias` value in API Gateway and Lambda `alias` pointer, 
 
 ## 📌 Who is using this
 
-This repository aims to teach api best practices to new developers, Solution Architects & Ops Engineers in AWS. Based on that knowledge these Udemy [course #1][103], [course #2][102] helps you build complete architecture in AWS.
+This repository aims to teach how to use persistent storage with serverless microservices running on AWS Lambda to new developers, Solution Architects & Ops Engineers in AWS. Based on that knowledge these Udemy [course #1][103], [course #2][102] helps you build complete architecture in AWS.
 
 ### 💡 Help/Suggestions or 🐛 Bugs
 
@@ -256,9 +216,10 @@ Thank you for your interest in contributing to our project. Whether it's a bug r
 
 ![miztiik-success-green](https://img.shields.io/badge/miztiik-success-green)
 
-[1]: https://docs.amazonaws.cn/en_us/apigateway/latest/developerguide/aws-api-gateway-stage-variables-reference.html
-[2]: https://docs.amazonaws.cn/en_us/apigateway/latest/developerguide/how-to-set-stage-variables-aws-console.html
-[3]: https://docs.amazonaws.cn/en_us/apigateway/latest/developerguide/stage-variables.html
+[1]: https://reinvent.awsevents.com/
+[2]: https://aws.amazon.com/blogs/compute/new-for-aws-lambda-predictable-start-up-times-with-provisioned-concurrency/
+[3]: https://pytorch.org/hub/nicolalandro_ntsnet-cub200_ntsnet/
+[4]: https://github.com/nicolalandro
 [4]: https://docs.aws.amazon.com/apigateway/latest/developerguide/amazon-api-gateway-using-stage-variables.html
 [5]: https://github.com/aws/aws-cdk/issues/5334
 [6]: https://stackoverflow.com/questions/62442651/aws-cdk-how-do-i-associate-a-specified-version-of-lambda-with-an-alias
@@ -270,7 +231,7 @@ Thank you for your interest in contributing to our project. Whether it's a bug r
 [101]: https://www.udemy.com/course/aws-cloud-security-proactive-way/?referralCode=71DC542AD4481309A441
 [102]: https://www.udemy.com/course/aws-cloud-development-kit-from-beginner-to-professional/?referralCode=E15D7FB64E417C547579
 [103]: https://www.udemy.com/course/aws-cloudformation-basics?referralCode=93AD3B1530BC871093D6
-[200]: https://github.com/miztiik/api-with-stage-variables/issues
+[200]: https://github.com/miztiik/serverless-machine-learning-api/issues
 [899]: https://www.udemy.com/user/n-kumar/
 [900]: https://ko-fi.com/miztiik
 [901]: https://ko-fi.com/Q5Q41QDGK

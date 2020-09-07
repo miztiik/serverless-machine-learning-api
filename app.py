@@ -30,7 +30,7 @@ pytorch_on_efs = PytorchOnEfsStack(
     app,
     "pytorch-on-efs",
     vpc=vpc_stack.vpc,
-    ec2_instance_type="m5.large",
+    ec2_instance_type="t3.large",
     deploy_to_efs=False,
     efs_share=efs_stack.efs_share,
     efs_ap_ml=efs_stack.efs_ap_ml,
@@ -43,7 +43,7 @@ pytorch_on_efs = PytorchOnEfsStack(
 serverless_machine_learning_api = ServerlessMachineLearningApiStack(
     app,
     "serverless-machine-learning-api",
-    pytorch_loader_server=pytorch_on_ec2.pytorch_loader,
+    pytorch_loader_server=pytorch_on_efs.pytorch_loader,
     vpc=vpc_stack.vpc,
     lambda_efs_sg=efs_stack.lambda_efs_sg,
     efs_sg=efs_stack.efs_sg,

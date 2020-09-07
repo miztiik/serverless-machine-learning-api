@@ -37,7 +37,8 @@ class PytorchOnEfsStack(core.Stack):
         user_data_part_01 = ("""#!/bin/bash
                         set -ex
                         EFS_MNT="/efs"
-                        ML_HOME="${EFS_MNT}/ml"
+                        ML_LIB_HOME="${EFS_MNT}/ml"
+                        MODEL_HOME="${EFS_MNT}/model"
                         EFS_USER_ID=1000
 
                         sudo yum -y install python3
@@ -53,13 +54,18 @@ class PytorchOnEfsStack(core.Stack):
         # file-system-id.efs.aws-region.amazonaws.com
         user_data_part_02 = f"sudo mount -t efs -o tls {efs_share.file_system_id}:/ /efs"
         user_data_part_03 = ("""
-                        sudo mkdir -p ${ML_HOME}
-                        cd ${ML_HOME}
-                        # sudo chown ssm-user:ssm-user ${ML_HOME}
-                        pip3 install -t ${ML_HOME}/lib torch
-                        pip3 install -t ${ML_HOME}/lib torchvision
-                        pip3 install -t ${ML_HOME}/lib numpy
-                        sudo chown -R ${EFS_USER_ID}:${EFS_USER_ID} ${ML_HOME}
+                        sudo mkdir -p ${ML_LIB_HOME}
+                        cd ${ML_LIB_HOME}
+                        # sudo chown ssm-user:ssm-user ${ML_LIB_HOME}
+                        pip3 install -t ${ML_LIB_HOME}/lib torch
+                        pip3 install -t ${ML_LIB_HOME}/lib torchvision
+                        pip3 install -t ${ML_LIB_HOME}/lib numpy
+                        sudo chown -R ${EFS_USER_ID}:${EFS_USER_ID} ${ML_LIB_HOME}
+                        sudo mkdir -p ${MODEL_HOME}
+                        cd ${MODEL_HOME}
+                        sudo wget https://github.com/nicolalandro/ntsnet-cub200/archive/master.zip
+                        sudo wget https://download.pytorch.org/models/resnet50-19c8e357.pth
+                        sudo wget https://github.com/nicolalandro/ntsnet_cub200/releases/download/0.2/nts_net_cub200.pt
                         """
                              )
 
