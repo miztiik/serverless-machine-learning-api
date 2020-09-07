@@ -128,22 +128,43 @@ For the machine learning part, we will be using a pre-trained model open sourced
     }
     ```
 
-    We need to append the image url as a query string. Here, couple of sample images of birds(Courstesy of wikimedia). Update the `ML_API_URL` and try it out. You can try with other bird images that are publicly accessible.
+    We need to append the image url as a query string. Here, couple of sample images of birds(Courstesy of wikimedia<sup>[5]</sup>). Update the `ML_API_URL` and try it out. You can try with other bird images that are publicly accessible.
 
     ```bash
-    $ ML_API_URL="https://i6c097ocbe.execute-api.us-east-1.amazonaws.com/prod/ml-api/identify-bird-species"
+    $ ML_API_URL="https://ace17f0y9c.execute-api.us-east-1.amazonaws.com/prod/ml-api/identify-bird-species"
     IMG_URL_1="https://upload.wikimedia.org/wikipedia/commons/d/d2/Western_Grebe_swimming.jpg"
     IMG_URL_2="https://upload.wikimedia.org/wikipedia/commons/b/b5/House_Sparrow_%28Passer_domesticus%29-_Male_in_Kolkata_I_IMG_5904.jpg"
+    ```
+
+    ```bash
     time curl ${ML_API_URL}?url=${IMG_URL_1}
     ```
 
     _Expected Output_,
 
     ```json
-
+    {
+      "message": "{'bird_class': '053.Western_Grebe'}",
+      "lambda_version": "14",
+      "ts": "2020-09-07 17:47:58.469903"
+    }
     ```
 
-    It is possible that the first invocation takes slightly longer(_even maybe timing out at API GW_) as the function has initialize with libraries and models from EFS. Subsequent invocations should be significantly lower at around `~ 2 seconds`.
+    ```bash
+    time curl ${ML_API_URL}?url=${IMG_URL_2}
+    ```
+
+    _Expected Output_,
+
+    ```json
+    {
+      "message": "{'bird_class': '118.House_Sparrow'}",
+      "lambda_version": "14",
+      "ts": "2020-09-07 17:49:46.138871"
+    }
+    ```
+
+    It is possible that the first invocation takes slightly longer(_even maybe timing out at API GW_) as the function has initialize with libraries and models from EFS. Subsequent invocations should be significantly lower at around `~ 3 seconds`.
 
     _Additional Learnings:_ You can check the logs in cloudwatch for more information or increase the logging level of the lambda functions by changing the environment variable from `INFO` to `DEBUG`
 
@@ -190,25 +211,20 @@ Thank you for your interest in contributing to our project. Whether it's a bug r
 
 ### 📚 References
 
-1. [Amazon API Gateway stage variables reference][1]
+1. [Deep learning inference with AWS Lambda and Amazon EFS][6]
 
-1. [Set stage variables using the Amazon API Gateway console][2]
+1. [ML with Lambda & EFS][7]
 
-1. [Set up stage variables for a REST API deployment][3]
+1. [Machine Learning Inference with SageMaker/EFS/Lambda][8]
 
-1. [Using Amazon API Gateway stage variables][4]
+1. [EFS Performance with Lambda][9]
 
-1. [CDK Github Issue: Deploying new version of lambda function][5]
+1. [Video Processing with EFS & Lambda][11]
 
-1. [CDK Associate a specified version of Lambda with an alias?][6]
+1. [EFS with AWS Fargate][12]
 
-1. [CDK API Gateway to a lambda Alias Integration?][7]
+1. [spaCy Model with Lambda using EFS][13]
 
-1. [API Gateway Stage Variables in ReST APIs][8]
-
-1. [API Gateway Stage Variables in HTTP APIs][9]
-
-1. [API Gateway Best Practices for Multiple Environments & Stages][10]
 
 ### 🏷️ Metadata
 
@@ -220,13 +236,15 @@ Thank you for your interest in contributing to our project. Whether it's a bug r
 [2]: https://aws.amazon.com/blogs/compute/new-for-aws-lambda-predictable-start-up-times-with-provisioned-concurrency/
 [3]: https://pytorch.org/hub/nicolalandro_ntsnet-cub200_ntsnet/
 [4]: https://github.com/nicolalandro
-[4]: https://docs.aws.amazon.com/apigateway/latest/developerguide/amazon-api-gateway-using-stage-variables.html
-[5]: https://github.com/aws/aws-cdk/issues/5334
-[6]: https://stackoverflow.com/questions/62442651/aws-cdk-how-do-i-associate-a-specified-version-of-lambda-with-an-alias
-[7]: https://stackoverflow.com/questions/63477633/how-do-you-point-api-gateway-to-a-lambda-alias-in-cdk
-[8]: https://docs.aws.amazon.com/apigateway/latest/developerguide/stage-variables.html
-[9]: https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-stages.html
+[5]: https://en.wikipedia.org/wiki/House_sparrow
+[6]: https://aws.amazon.com/blogs/compute/building-deep-learning-inference-with-aws-lambda-and-amazon-efs/
+[7]: https://aws.amazon.com/blogs/aws/new-a-shared-file-system-for-your-lambda-functions/
+[8]: https://medium.com/@shitijkarsolia/setup-serverless-ml-inference-with-aws-lambda-efs-738546fa2e03
+[9]: https://lumigo.io/blog/unlocking-more-serverless-use-cases-with-efs-and-lambda/
 [10]: https://youtu.be/yfJZc3sJZ8E?t=2405
+[11]: https://aws.amazon.com/blogs/compute/using-amazon-efs-for-aws-lambda-in-your-serverless-applications/
+[12]: https://aws.amazon.com/blogs/containers/developers-guide-to-using-amazon-efs-with-amazon-ecs-and-aws-fargate-part-1/
+[13]: https://towardsdatascience.com/load-a-large-spacy-model-on-aws-lambda-e1999e5e24b5
 [100]: https://www.udemy.com/course/aws-cloud-security/?referralCode=B7F1B6C78B45ADAF77A9
 [101]: https://www.udemy.com/course/aws-cloud-security-proactive-way/?referralCode=71DC542AD4481309A441
 [102]: https://www.udemy.com/course/aws-cloud-development-kit-from-beginner-to-professional/?referralCode=E15D7FB64E417C547579
